@@ -1,0 +1,688 @@
+---
+title: "ECT_Analysis"
+author: "Faraz Hassan"
+date: "7/11/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Reading in patient data for neuroimage processing
+
+data.csv \<- read.csv('/nethome/fhassan3/IPERSR-MRISessionsAndName_DATA_2023-05-31_1058.csv')
+
+## Copying T1 and T2 images from supervisor's to my directory and adding timepoint variable for running longitudinal analysis using freesurfer
+
+# T1 image copy
+
+for (x in 1:nrow(data.csv)){ i = data.csv[x,7] j = data.csv[x,9] file_from \<- paste0('/data/BIDS/sub-',j,'/ses-',i,'/anat','/sub-',j,'\_ses-',i,'\_run-01_T1w.nii.gz')
+
+k = sprintf("%02d", data.csv[x,4]) file_to \<- paste0('/nethome/fhassan3/LongFreesurfer/sub-',j,'\_ses-',i,'\_tp-', k,'\_T1w.nii.gz') print(file_to) file.copy(file_from, file_to) }
+
+# T2 image copy
+
+for (x in 1:nrow(data.csv)){ i = data.csv[x,7] j = data.csv[x,9] file_from \<- paste0('/data/BIDS/sub-',j,'/ses-',i,'/anat','/sub-',j,'\_ses-',i,'\_run-01_T2w.nii.gz')
+
+k = sprintf("%02d", data.csv[x,4]) file_to \<- paste0('/nethome/fhassan3/LongFreesurfer/sub-',j,'\_ses-',i,'\_tp-', k,'\_T2w.nii.gz') print(file_to) file.copy(file_from, file_to) }
+
+## Generating new text file that contains bash code for reconstruction of T1 and T2 images of 4 patients using freesurfer through docker
+
+# recon of T1 and T2 images using docker
+
+file_path = '/nethome/fhassan3/recon.txt' 
+for (x in 1:nrow(data.csv)){ 
+i = data.csv[x,7] j = data.csv[x,9] 
+k = sprintf("%02d", data.csv[x,4]) 
+new_line \<- paste0('echo -n "docker run -i --rm -v /nethome/fhassan3/LongFreesurfer/:/data -v /nethome/fhassan3/LongFreesurfer/OUTPUT/:/usr/local/freesurfer/subjects -v /usr/local/opt/freesurfer7.1/.license:/usr/local/freesurfer/.license freesurfer/freesurfer:7.1.1 /bin/bash -c ',"'",'recon-all -s',j,'\_',k,' -i /data/sub-',j,'\_ses-',i,'\_tp-',k,'\_T1w.nii.gz -T2 /data/sub-',j,'\_ses-',i,'\_tp-',k,'*T2w.nii.gz -T2pial -all',"'",'"','\| qsub -o /nethome/amiklos/QSUB_OUTPUT/test_0',i,' -e /nethome/amiklos/QSUB_OUTPUT/teste*',i) 
+write(new_line, file_path, append=TRUE) }
+
+## Generating text file for base recon for running longitudinal freesurfer analysis
+
+s <- unique(data.csv\$grid) 
+v <- as.list(s) 
+base_path = '/nethome/fhassan3/recon_base.txt' 
+for(x in v) { 
+if (x \< 14160) { 
+   tp \<- '' for (y in 1:10){ 
+   k = sprintf("%02d", y) 
+   new_line1 \<- paste0(' -tp /usr/local/freesurfer/subjects/',x,'*', k) tp \<- paste0(tp, new_line1) } new_line2 \<-       paste0('echo -n "docker run -i --rm -v /nethome/fhassan3/LongFreesurfer/:/data -v        /nethome/fhassan3/LongFreesurfer/OUTPUT/:/usr/local/freesurfer/subjects -v /usr/local/opt/freesurfer7.1/.license:/usr/local/freesurfer/.license freesurfer/freesurfer:7.1.1 /bin/bash -c ',"'",'recon-all -base', x, 'base',tp,' -all',"'",'"','\| qsub -o /nethome/amiklos/QSUB_OUTPUT/test_0',x,' -e /nethome/amiklos/QSUB_OUTPUT/teste*',x) 
+   write(new_line2, base_path, append=TRUE) } 
+   else { 
+   tp <- '' for (y in 1:5){ 
+   k = sprintf("%02d", y) 
+   new_line3 <- paste0(' -tp /usr/local/freesurfer/subjects/',x,'', k) 
+   tp \<- paste0(tp, new_line3) } 
+   new_line4 \<- paste0('echo -n "docker run -i --rm -v /nethome/fhassan3/LongFreesurfer/:/data -v /nethome/fhassan3/LongFreesurfer/OUTPUT/:/usr/local/freesurfer/subjects -v /usr/local/opt/freesurfer7.1/.license:/usr/local/freesurfer/.license freesurfer/freesurfer:7.1.1 /bin/bash -c ',"'",'recon-all -base', x, '*base',tp,' -all',"'",'"','\| qsub -o /nethome/amiklos/QSUB_OUTPUT/test_0',x,' -e /nethome/amiklos/QSUB_OUTPUT/teste*',x) 
+   write(new_line4, base_path, append=TRUE) } }
+
+## Generating text file for long recon for running longitudinal freesurfer analysis (final step)
+
+long_path = '/nethome/fhassan3/recon_long.txt' for (x in 1:nrow(data.csv)){ i = data.csv[x,9] j = sprintf("%02d", data.csv[x,4]) new_line \<- paste0('echo -n "docker run -i --rm -v /nethome/fhassan3/LongFreesurfer/:/data -v /nethome/fhassan3/LongFreesurfer/OUTPUT/:/usr/local/freesurfer/subjects -v /usr/local/opt/freesurfer7.1/.license:/usr/local/freesurfer/.license freesurfer/freesurfer:7.1.1 /bin/bash -c ',"'",'recon-all -long /usr/local/freesurfer/subjects/',i,'*', j,' /usr/local/freesurfer/subjects/', i, 'base -all',"'",'"','\| qsub -o /nethome/amiklos/QSUB_OUTPUT/test_0',i,'*',j,' -e /nethome/amiklos/QSUB_OUTPUT/teste',i,'\_',j) write(new_line, long_path, append=TRUE) }
+
+unique(data.csv$grid) s <- unique(data.csv$grid) v \<- as.list(s) for(x in v) { if (x \< 14160) { tp \<- '' for (y in 1:10){ k = sprintf("%02d", y) new_line1 \<- paste0(' -tp /usr/local/freesurfer/subjects/',x,'*', k) tp \<- paste0(tp, new_line1) } new_line2 \<- paste0('echo -n "docker run -i --rm -v /nethome/fhassan3/LongFreesurfer/:/data -v /nethome/fhassan3/LongFreesurfer/OUTPUT/:/usr/local/freesurfer/subjects -v /usr/local/opt/freesurfer7.1/.license:/usr/local/freesurfer/.license freesurfer/freesurfer:7.1.1 /bin/bash -c ',"'",'recon-all -base', x, 'base',tp,' -all',"'",'"','\| qsub -o /nethome/amiklos/QSUB_OUTPUT/test_0',x,' -e /nethome/amiklos/QSUB_OUTPUT/teste*',x) write(new_line2, base_path, append=TRUE) } else { tp \<- '' for (y in 1:5){ k = sprintf("%02d", y) new_line3 \<- paste0(' -tp /usr/local/freesurfer/subjects/',x,'', k) tp \<- paste0(tp, new_line3) } new_line4 \<- paste0('echo -n "docker run -i --rm -v /nethome/fhassan3/LongFreesurfer/:/data -v /nethome/fhassan3/LongFreesurfer/OUTPUT/:/usr/local/freesurfer/subjects -v /usr/local/opt/freesurfer7.1/.license:/usr/local/freesurfer/.license freesurfer/freesurfer:7.1.1 /bin/bash -c ',"'",'recon-all -base', x, '*base',tp,' -all',"'",'"','\| qsub -o /nethome/amiklos/QSUB_OUTPUT/test_0',x,' -e /nethome/amiklos/QSUB_OUTPUT/teste*',x) write(new_line4, base_path, append=TRUE) }
+
+## Packages used in analysis
+
+```{r packages}
+install.packages("dplyr")
+library("dplyr")
+library(ggplot2)
+library(tibble)
+library(tidyverse)
+```
+
+## Loading aseg(fvoldf) and aparc(aparc_vol) data from longitudinal analysis performed on 4 patients across their mris
+
+```{r data}
+for (grid in c('13900', '13903', '14071', '14160')){
+  filename = paste0("aseg_stats_", grid,".txt")
+  voldf <- read.table(filename, sep = "\t", header = T)
+  voldf$time <- 1:dim(voldf)[1]
+  voldf$grid <- as.numeric(grid)
+  if (grid=='13900')
+  {
+    fvoldf <- voldf
+  }else
+  {
+    fvoldf <- rbind(fvoldf, voldf)
+  }
+}
+head(fvoldf)
+
+for (grid in c('13900', '13903', '14071', '14160')){
+    filename = paste0("aparc_stats_",grid,"_LH.txt")
+    lvol <- read.table(filename, sep = "\t", header = T)
+    lvol$time <- 1:dim(voldf)[1]
+    lvol$grid <- as.numeric(grid)
+    if (grid=='13900'){
+        lvoldf <- lvol
+        }
+    else{
+    lvoldf <- rbind(lvoldf, lvol)
+    }
+}
+for (grid in c('13900', '13903', '14071', '14160')){
+  filename = paste0("aparc_stats_",grid,"_RH.txt")
+  rvol <- read.table(filename, sep = "\t", header = T)
+  rvol$time <- 1:dim(voldf)[1]
+  rvol$grid <- as.numeric(grid)
+    if (grid=='13900')
+    {
+      rvoldf <- rvol
+      }
+  else
+        {
+          rvoldf <- rbind(rvoldf, rvol)
+          }
+}
+aparc_vol <- cbind(lvoldf, rvoldf)
+head(aparc_vol)
+```
+
+## Loading patient data without personal information and filtering out the 4 specific patients
+
+```{r data}
+iper <- read.csv("IPERSR_DATA_2023-06-21_1423.csv")
+iper <- iper %>% filter(record_id %in% c(58,59,61,62))
+iper$ect_date <- as.Date(iper$ect_date, format = "%d/%m/%y")
+iper$date_mri <- as.Date(iper$date_mri, format = "%d/%m/%y")
+```
+
+## Establishing net change response variable for left/right hippocampus(aseg), amygdala(aseg), and insula(aparc) volumes across 4 patients at each mri
+
+```{r variables}
+fvoldf['NRhip'] <- 0
+for (grid in c('13900', '13903', '14071', '14160')){
+  ix <- which(fvoldf$grid==grid)
+  ix1 <- which((fvoldf$grid==grid) & (fvoldf$time==1))
+  fvoldf$NRhip[ix]<-  (fvoldf$Right.Hippocampus[ix]-fvoldf$Right.Hippocampus[ix1])/fvoldf$Right.Hippocampus[ix1]
+}
+fvoldf['NLhip'] <- 0
+for (grid in c('13900', '13903', '14071', '14160')){
+  ix <- which(fvoldf$grid==grid)
+  ix1 <- which((fvoldf$grid==grid) & (fvoldf$time==1))
+  fvoldf$NLhip[ix]<-  (fvoldf$Left.Hippocampus[ix]-fvoldf$Left.Hippocampus[ix1])/fvoldf$Left.Hippocampus[ix1]
+}
+fvoldf['NRami'] <- 0
+for (grid in c('13900', '13903', '14071', '14160'))
+{
+  ix <- which(fvoldf$grid==grid)
+  ix1 <- which((fvoldf$grid==grid) & (fvoldf$time==1))
+  fvoldf$NRami[ix] <-  (fvoldf$Right.Amygdala[ix]-fvoldf$Right.Amygdala[ix1])/fvoldf$Right.Amygdala[ix1]
+}
+fvoldf['NLami'] <- 0
+for (grid in c('13900', '13903', '14071', '14160'))
+{
+  ix <- which(fvoldf$grid==grid)
+  ix1 <- which((fvoldf$grid==grid) & (fvoldf$time==1))
+  fvoldf$NLami[ix] <-  (fvoldf$Left.Amygdala[ix]-fvoldf$Left.Amygdala[ix1])/fvoldf$Left.Amygdala[ix1]
+}
+
+aparc_vol['NRins'] <- 0
+for (grid in c('13900', '13903', '14071', '14160')){
+   ix <- which(aparc_vol$grid==grid)
+   ix1 <- which((aparc_vol$grid==grid) & (aparc_vol$time==1))
+   aparc_vol$NRins[ix]<-  (aparc_vol$rh_insula_thickness[ix]-aparc_vol$rh_insula_thickness[ix1])/aparc_vol$rh_insula_thickness[ix1]
+}
+aparc_vol['NLins'] <- 0
+for (grid in c('13900', '13903', '14071', '14160')){
+  ix <- which(aparc_vol$grid==grid)
+  ix1 <- which((aparc_vol$grid==grid) & (aparc_vol$time==1))
+  aparc_vol$NLins[ix]<-  (aparc_vol$lh_insula_thickness[ix]-aparc_vol$lh_insula_thickness[ix1])/aparc_vol$lh_insula_thickness[ix1]
+}
+
+```
+
+## Establishing variable ect_level2 (ect dosage) received by patients by calculating product from ect frequency and stimulation duration for every ECT treated on patients
+
+```{r}
+for(x in 1:nrow(iper)){
+  iper$ect_level2[x] <- iper$frequency[x] * iper$stim_duration[x]
+}
+
+#adding ect dosage if second ect received in same day
+for(x in 1:nrow(iper)){
+  iper$ect_level3[x] <- (iper$frequency_2[x] * iper$stim_duration_2[x]) + (iper$frequency[x] * iper$stim_duration[x])
+}
+
+for(x in 1:nrow(iper)){
+  if (is.na(iper$ect_level3[x]) == FALSE) {
+    iper$ect_level2[x] <- iper$ect_level3[x]
+  }
+}
+```
+
+## Establishing variable ect_total, based on total ect dosage received by each patient before a particular mri
+
+```{r}
+test_1 <- data.frame(iper$record_id, iper$redcap_event_name, iper$gridnumber, iper$redcap_repeat_instance, iper$frequency, iper$ect_completed_pre_mri, iper$stim_duration, iper$frequency_2, iper$stim_duration_2, iper$ect_level2) 
+
+test_1 <- test_1 %>%
+  add_column(ect_total = 0)
+
+for (x in 2:nrow(test_1)){
+  if (test_1$iper.redcap_event_name[x] == 'ect_arm_1' ){
+    test_1$ect_total[x] <- as.numeric(test_1$iper.ect_level2[x])+as.numeric(test_1$ect_total[x-1])
+  }
+}
+
+ect_1 <- select(filter(test_1, iper.redcap_event_name == 'ect_arm_1' & iper.record_id == 58 ),c(iper.redcap_repeat_instance, ect_total))
+ect_2 <- select(filter(test_1, iper.redcap_event_name == 'ect_arm_1' & iper.record_id == 59 ),c(iper.redcap_repeat_instance, ect_total))
+ect_3 <- select(filter(test_1, iper.redcap_event_name == 'ect_arm_1' & iper.record_id == 61 ),c(iper.redcap_repeat_instance, ect_total))
+ect_4 <- select(filter(test_1, iper.redcap_event_name == 'ect_arm_1' & iper.record_id == 62 ),c(iper.redcap_repeat_instance, ect_total))
+
+test_1$iper.ect_completed_pre_mri[15] <- 13
+
+for (x in 2:nrow(test_1)){
+  if (test_1$iper.redcap_event_name[x] == 'mri_arm_1' & test_1$iper.record_id[x] == 58){
+    i <- as.numeric(test_1$iper.ect_completed_pre_mri[x])
+    if (i == 0) {
+      test_1$ect_total[x] <- 0
+    }
+    else {
+      test_1$ect_total[x] <- as.numeric(ect_1$ect_total[i])
+    }
+  }
+  else if (test_1$iper.redcap_event_name[x] == 'mri_arm_1' & test_1$iper.record_id[x] == 59){
+    i <- as.numeric(test_1$iper.ect_completed_pre_mri[x])
+    if (i == 0) {
+      test_1$ect_total[x] <- 0
+    }
+    else {
+      test_1$ect_total[x] <- as.numeric(ect_2$ect_total[i])
+    }
+  }
+  else if (test_1$iper.redcap_event_name[x] == 'mri_arm_1' & test_1$iper.record_id[x] == 61){
+    i <- as.numeric(test_1$iper.ect_completed_pre_mri[x])
+    if (i == 0) {
+      test_1$ect_total[x] <- 0
+    }
+    else {
+      test_1$ect_total[x] <- as.numeric(ect_3$ect_total[i])
+    }
+  }
+  else if (test_1$iper.redcap_event_name[x] == 'mri_arm_1' & test_1$iper.record_id[x] == 62){
+    i <- as.numeric(test_1$iper.ect_completed_pre_mri[x])
+    if (i == 0) {
+      test_1$ect_total[x] <- 0
+    }
+    else {
+      test_1$ect_total[x] <- as.numeric(ect_4$ect_total[i])
+    }
+  }
+}
+
+
+ect <- select(filter(test_1, iper.redcap_event_name == 'mri_arm_1' ),c(iper.record_id, iper.gridnumber, iper.ect_completed_pre_mri, iper.redcap_repeat_instance, ect_total))
+for (x in 1:nrow(ect)){
+  if (ect$iper.record_id[x] == 58){
+    ect$iper.gridnumber[x] <- 13900
+  }
+  else if (ect$iper.record_id[x] == 59){
+    ect$iper.gridnumber[x] <- 13903
+  }
+  else if (ect$iper.record_id[x] == 61){
+    ect$iper.gridnumber[x] <- 14071
+  }
+  else if (ect$iper.record_id[x] == 62){
+    ect$iper.gridnumber[x] <- 14160
+  }
+}
+```
+
+## Combining ect_total variable to above aseg and aparc data
+
+```{r}
+fvoldf <- cbind(fvoldf, ect$ect_total)
+colnames(fvoldf)[which(colnames(fvoldf)=='ect$ect_total')] <- 'ect_total'
+fvoldf
+
+aparc <- cbind(aparc_vol, ect$ect_total)
+colnames(aparc)[which(colnames(aparc)=='ect$ect_total')]<-'ect_total'
+aparc
+
+```
+
+## Graphs for volume changes in left/right hippocampus against total ect received by patients before given mri across the 4 different patients
+
+```{r}
+#NRhip over ect levels
+ggplot(data=fvoldf, aes(x=ect_total, y=NRhip, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+
+#NLhip over ect levels
+ggplot(data=fvoldf, aes(x=ect_total, y=NLhip, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+```
+
+## Graphs for volume changes in left/right amygdala against total ect received by patients before given mri across the 4 different patients
+
+```{r}
+#NLami over ect levels
+ggplot(data=fvoldf, aes(x=ect_total, y=NLami, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+
+#NRami over ect levels
+ggplot(data=fvoldf, aes(x=ect_total, y=NRami, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+```
+
+## Graphs for thickness changes in left/right insula against total ect received by patients before given mri across the 4 different patients
+
+```{r}
+#NLins
+ggplot(data=aparc, aes(x=ect_total, y=NLins, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+
+#NRins
+ggplot(data=aparc, aes(x=ect_total, y=NRins, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+```
+
+## Establishing variable last_ect from time allocated differences between mri dates and the ect date of the closest ect received before the mri date; trying to answer the spikes of left and right insula thickness changes over ect_total
+
+```{r}
+test_2 <- data.frame(iper$record_id, iper$redcap_event_name, iper$gridnumber, iper$redcap_repeat_instance, iper$ect_completed_pre_mri, iper$date_mri, iper$ect_date) 
+for (x in 1:nrow(test_2)){
+  if (test_2$iper.record_id[x] == 58){
+    test_2$iper.gridnumber[x] <- 13900
+  }
+  else if (test_2$iper.record_id[x] == 59){
+    test_2$iper.gridnumber[x] <- 13903
+  }
+  else if (test_2$iper.record_id[x] == 61){
+    test_2$iper.gridnumber[x] <- 14071
+  }
+  else if (test_2$iper.record_id[x] == 62){
+    test_2$iper.gridnumber[x] <- 14160
+  }
+}
+test_2$iper.ect_completed_pre_mri[15] <- 13
+dates_1 <- select(filter(test_2, iper.redcap_event_name == 'ect_arm_1' & iper.record_id == 58 ),c(iper.redcap_repeat_instance, iper.ect_date))
+dates_2 <- select(filter(test_2, iper.redcap_event_name == 'ect_arm_1' & iper.record_id == 59 ),c(iper.redcap_repeat_instance, iper.ect_date))
+dates_3 <- select(filter(test_2, iper.redcap_event_name == 'ect_arm_1' & iper.record_id == 61 ),c(iper.redcap_repeat_instance, iper.ect_date))
+dates_4 <- select(filter(test_2, iper.redcap_event_name == 'ect_arm_1' & iper.record_id == 62 ),c(iper.redcap_repeat_instance, iper.ect_date))
+
+
+test_2['last_ect'] <- 0
+
+for (x in 1:nrow(test_2)){
+  if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 58){
+    i <- test_2$iper.ect_completed_pre_mri[x]
+    if (i==0){
+      test_2$last_ect[x] <- as.numeric(0)
+    }
+    else{
+      test_2$last_ect[x] <- as.integer(difftime(test_2$iper.date_mri[x], dates_1$iper.ect_date[i]))
+    }
+  }
+  else if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 59){
+    i <- test_2$iper.ect_completed_pre_mri[x]
+    if(i == 0){
+      test_2$last_ect[x] <- as.numeric(0)
+    }
+    else{
+      test_2$last_ect[x] <- as.integer(difftime(test_2$iper.date_mri[x], dates_2$iper.ect_date[i]))
+    }
+  }
+  else if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 61){
+    i <- test_2$iper.ect_completed_pre_mri[x]
+    if (i==0){
+      test_2$last_ect[x] <- as.numeric(0)
+    }
+    else{
+      test_2$last_ect[x] <- as.integer(difftime(test_2$iper.date_mri[x], dates_3$iper.ect_date[i]))
+    }
+  }
+  else if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 62){
+    i <- test_2$iper.ect_completed_pre_mri[x]
+    if (i == 0){
+      test_2$last_ect[x] <- as.numeric(0)
+    }
+    else{
+      test_2$last_ect[x] <- as.integer(difftime(test_2$iper.date_mri[x], dates_4$iper.ect_date[i]))
+    }
+  }
+  else {
+    test_2$last_ect[x] <- NA
+  }
+}
+
+time_analysis <- select(filter(test_2, iper.redcap_event_name == 'mri_arm_1' ),c(iper.record_id, iper.gridnumber, iper.redcap_repeat_instance, last_ect))
+
+aparc <- cbind(aparc, time_analysis$last_ect)
+colnames(aparc)[which(colnames(aparc)=='time_analysis$last_ect')]<-'lastect'
+
+#Testing last ect hypothesis for insula thickness changes
+ggplot(data=aparc, aes(x=lastect, y=NLins, colour=factor(grid)))+
+  stat_smooth(method='lm')+
+  geom_point()
+
+ggplot(data=aparc, aes(x=lastect, y=NRins, colour=factor(grid)))+
+  stat_smooth(method='lm')+
+  geom_point()
+```
+
+## Establishing variable ect_frequency by calculating the frequency at which the last 3 ects were received before a given mri for each patient.
+
+```{r}
+test_2['ect_frequency'] <- 0
+for (x in 1:nrow(test_2)){
+  if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 58){
+    i <- test_2$iper.ect_completed_pre_mri[x]
+    if (i < 3){
+      test_2$ect_frequency[x] <- 0
+    }
+    else{
+     j <- as.numeric(difftime(test_2$iper.date_mri[x], dates_1$iper.ect_date[i-2]))
+     test_2$ect_frequency[x] <- 3/(j)
+    }
+  }
+}
+
+for (x in 1:nrow(test_2)){
+  if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 59){
+    i <- test_2$iper.ect_completed_pre_mri[x]
+    if (i < 3){
+      test_2$ect_frequency[x] <- 0
+    }
+    else{
+      j <- as.numeric(difftime(test_2$iper.date_mri[x], dates_2$iper.ect_date[i-2]))
+      test_2$ect_frequency[x] <- 3/(j)
+    }
+  }
+}
+
+for (x in 1:nrow(test_2)){
+  if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 61){
+    i <- test_2$iper.ect_completed_pre_mri[x]
+    if (i < 3){
+      test_2$ect_frequency[x] <- 0
+    }
+    else{
+      j <- as.numeric(difftime(test_2$iper.date_mri[x], dates_3$iper.ect_date[i-2]))
+      test_2$ect_frequency[x] <- 3/(j)
+    }
+  }
+}
+
+for (x in 1:nrow(test_2)){
+  if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 62){
+    i <- test_2$iper.ect_completed_pre_mri[x]
+    if (i < 3){
+      test_2$ect_frequency[x] <- 0
+    }
+    else{
+      j <- as.numeric(difftime(test_2$iper.date_mri[x], dates_4$iper.ect_date[i-2]))
+      test_2$ect_frequency[x] <- 3/(j)
+    }
+  }
+}
+
+time_analysis <- select(filter(test_2, iper.redcap_event_name == 'mri_arm_1' ),c(iper.record_id, iper.gridnumber, iper.redcap_repeat_instance, last_ect, ect_frequency))
+
+fvoldf <- cbind(fvoldf, ect$iper.ect_completed_pre_mri)
+colnames(fvoldf)[which(colnames(fvoldf)=='ect$iper.ect_completed_pre_mri')] <- 'ect_pre_mri'
+
+fvoldf <- cbind(fvoldf, time_analysis$ect_frequency)
+colnames(fvoldf)[which(colnames(fvoldf)=='time_analysis$ect_frequency')] <- 'ect_frequency'
+
+aparc <- cbind(aparc, time_analysis$ect_frequency)
+colnames(aparc)[which(colnames(aparc)=='time_analysis$ect_frequency')] <- 'ect_frequency'
+
+```
+
+## Graphs for volumetric changes against ect_frequency
+
+```{r}
+#NLins
+ggplot(data=aparc, aes(x=ect_frequency, y=NLins, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+
+#NRins
+ggplot(data=aparc, aes(x=ect_frequency, y=NRins, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+
+#NLhip
+ggplot(data=fvoldf, aes(x=ect_frequency, y=NLhip, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+
+#NRhip
+ggplot(data=fvoldf, aes(x=ect_frequency, y=NRhip, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+
+#NLami
+ggplot(data=fvoldf, aes(x=ect_frequency, y=NLami, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+
+#NRami
+ggplot(data=fvoldf, aes(x=ect_frequency, y=NRami, colour=factor(grid)))+
+  geom_line()+
+  geom_point()
+```
+
+## Testing model to predict volumetric changes via total ect and ect frequency and their interaction
+
+```{r}
+#NRhip
+summary(lm(NRhip ~ ect_frequency + ect_total + ect_total:ect_frequency, data = fvoldf))
+
+#NLhip
+summary(lm(NLhip ~ ect_frequency + ect_total + ect_total:ect_frequency, data = fvoldf))
+
+#NRami
+summary(lm(NRami ~ ect_frequency + ect_total + ect_total:ect_frequency, data = fvoldf))
+
+#NRami
+summary(lm(NLami ~ ect_frequency + ect_total + ect_total:ect_frequency, data = fvoldf))
+
+#NRins
+summary(lm(NRins ~ ect_frequency + ect_total + ect_total:ect_frequency, data = aparc))
+
+#NLins
+summary(lm(NLins ~ ect_frequency + ect_total + ect_total:ect_frequency, data = aparc))
+```
+
+### Testing exponential decay model for volumetric changes in the hippocampus
+
+## organizing days past each ect from mri date
+
+```{r}
+for (x in 1:14){
+  test_2[paste0('e-',x)] <- NA
+}
+
+for (x in 1:nrow(test_2)){
+  i <- test_2$iper.ect_completed_pre_mri[x]
+  if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 58 & i > 0){
+    for (j in 1:i){
+    test_2[x, paste0('e-',j)] <- as.integer(difftime(test_2$iper.date_mri[x], dates_1$iper.ect_date[j]))
+    }
+  }
+  else if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 59 & i > 0){
+    for (j in 1:i){
+      test_2[x, paste0('e-',j)] <- as.integer(difftime(test_2$iper.date_mri[x], dates_2$iper.ect_date[j]))
+    }
+  }
+  else if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 61 & i > 0){
+    for (j in 1:i){
+      test_2[x, paste0('e-',j)] <- as.integer(difftime(test_2$iper.date_mri[x], dates_3$iper.ect_date[j]))
+    }
+  }
+  else if (test_2$iper.redcap_event_name[x] == 'mri_arm_1' & test_2$iper.record_id[x] == 62 & i > 0){
+    for (j in 1:i){
+      test_2[x, paste0('e-',j)] <- as.integer(difftime(test_2$iper.date_mri[x], dates_4$iper.ect_date[j]))
+    }
+  }
+}
+
+time_analysis <- select(filter(test_2, iper.redcap_event_name == 'mri_arm_1' ),c(iper.record_id, iper.gridnumber, iper.redcap_repeat_instance, last_ect, ect_frequency, 'e-1', 'e-2', 'e-3', 'e-4', 'e-5', 'e-6', 'e-7', 'e-8', 'e-9', 'e-10', 'e-11', 'e-12', 'e-13', 'e-14'))
+fvoldf <- cbind(fvoldf, time_analysis[c('e-1', 'e-2', 'e-3', 'e-4', 'e-5', 'e-6', 'e-7', 'e-8', 'e-9', 'e-10', 'e-11', 'e-12', 'e-13', 'e-14')])
+```
+
+## ect impact function used to find residuals for given exponential model
+
+```{r}
+ectimpact <-function(A, k, fvoldf, roi)
+{
+  fsum =0 
+  for (i in 1:dim(fvoldf)[1])
+  {
+    msum = 0 
+    if (fvoldf$ect_pre_mri[i]!=0)
+    {
+      for (j in 1:fvoldf$ect_pre_mri[i])
+      {
+        msum = msum + A*exp((-1)*k*fvoldf[i, paste0('e-',j)])
+      }
+     
+    }
+    fsum = fsum + (fvoldf[i,roi]-msum)*(fvoldf[i,roi]-msum)
+  }
+  return(fsum) 
+}
+
+```
+
+## function that generates list of estimates based on model
+
+```{r}
+fitcalc <-function(A, k, fvoldf, roi)
+{
+  fsum =c()
+  for (i in 1:dim(fvoldf)[1])
+  {
+    msum = 0 
+    if (fvoldf$ect_pre_mri[i]!=0)
+    {
+      for (j in 1:fvoldf$ect_pre_mri[i])
+      {
+        msum = msum + A*exp((-1)*k*fvoldf[i, paste0('e-',j)])
+      }
+      
+    }
+    fsum = c(fsum, msum)
+  }
+  return(fsum) 
+}
+```
+
+## function that optimzes A and k values for exponential model for each patient (13900, 13903, 14071, 14160) for the right hippocampus volume changes
+
+```{r}
+#13900
+funtoopt<-function(x){
+  A<-x[1]
+  k<-x[2]
+  ectimpact(A,k,fvoldf[which(fvoldf$grid == 13900),], 'NRhip')
+}
+funtoopt(c(1,1))
+myparam <- optim(c(1,1), funtoopt)
+
+#13903
+funtoopt2<-function(x)
+{
+  A<-x[1]
+  k<-x[2]
+  ectimpact(A,k,fvoldf[which(fvoldf$grid == 13903),], 'NRhip')
+}
+funtoopt2(c(1,1))
+myparam2 <- optim(c(1,1), funtoopt2)
+
+#14071
+funtoopt3<-function(x)
+{
+  A<-x[1]
+  k<-x[2]
+  ectimpact(A,k,fvoldf[which(fvoldf$grid == 14071),], 'NRhip')
+}
+funtoopt3(c(1,1))
+myparam3 <- optim(c(1,1), funtoopt3)
+
+#14160
+funtoopt4<-function(x)
+{
+  A<-x[1]
+  k<-x[2]
+  ectimpact(A,k,fvoldf[which(fvoldf$grid == 14160),], 'NRhip')
+}
+funtoopt4(c(1,1))
+myparam4 <- optim(c(1,1), funtoopt4)
+```
+
+## Model Fit Graphs for right hippocampus for each patients
+
+```{r}
+#13900
+NRhipfit1 <- fitcalc(myparam$par[1],myparam$par[2],fvoldf[which(fvoldf$grid == 13900),], 'NRhip')
+plot(fvoldf[which(fvoldf$grid == 13900),'NRhip'], NRhipfit1)
+abline(lm(NRhipfit1 ~ fvoldf[which(fvoldf$grid == 13900),'NRhip']))
+
+#13903
+NRhipfit2 <- fitcalc(myparam2$par[1],myparam2$par[2],fvoldf[which(fvoldf$grid == 13903),], 'NRhip')
+plot(fvoldf[which(fvoldf$grid == 13903),'NRhip'], NRhipfit2)
+abline(lm(NRhipfit2 ~ fvoldf[which(fvoldf$grid == 13903),'NRhip']))
+
+#14071
+NRhipfit3 <- fitcalc(myparam3$par[1],myparam3$par[2],fvoldf[which(fvoldf$grid == 14071),], 'NRhip')
+plot(fvoldf[which(fvoldf$grid == 14071),'NRhip'], NRhipfit3)
+abline(lm(NRhipfit3 ~ fvoldf[which(fvoldf$grid == 14071),'NRhip']))
+
+#14160
+NRhipfit4 <- fitcalc(myparam4$par[1],myparam4$par[2],fvoldf[which(fvoldf$grid == 14160),], 'NRhip')
+plot(fvoldf[which(fvoldf$grid == 14160),'NRhip'], NRhipfit4)
+abline(lm(NRhipfit4 ~ fvoldf[which(fvoldf$grid == 14160),'NRhip']))
+```
