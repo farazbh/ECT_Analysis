@@ -75,7 +75,7 @@ library(tidyverse)
 
 ## Loading aseg(fvoldf) and aparc(aparc_vol) data from longitudinal analysis performed on 4 patients across their mris
 
-```{r data}
+```{r data1}
 for (grid in c('13900', '13903', '14071', '14160')){
   filename = paste0("aseg_stats_", grid,".txt")
   voldf <- read.table(filename, sep = "\t", header = T)
@@ -123,7 +123,7 @@ head(aparc_vol)
 
 ## Loading patient data without personal information and filtering out the 4 specific patients
 
-```{r data}
+```{r data2}
 iper <- read.csv("IPERSR_DATA_2023-06-21_1423.csv")
 iper <- iper %>% filter(record_id %in% c(58,59,61,62))
 iper$ect_date <- as.Date(iper$ect_date, format = "%d/%m/%y")
